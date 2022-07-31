@@ -1,0 +1,49 @@
+import java.util.stream.Collectors
+
+plugins {
+  id 'java'
+  id 'maven-publish'
+  id 'signing'
+}
+
+group 'de.heisluft.randomutils'
+version '1.0.0'
+
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(16))
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+  archiveClassifier.set 'sources'
+  from sourceSets.main.allSource
+}
+
+publishing {
+  repositories.maven {
+    url mavenUrl
+    credentials {
+      username = mavenUsername
+      password = mavenPassword
+    }
+    authentication.withType(BasicAuthentication)
+  }
+  publications.create('maven', MavenPublication) {
+    it.from components.getByName('java')
+    it.artifact sourcesJar
+  }
+}
+
+signing {
+  useGpgCmd()
+  sign publishing.publications.getByName('maven')
+}
+
+tasks.register('genNames') {
+  it.dependsOn(tasks.getByName('compileJava'))
+  it.doLast {
+    def files = sourceSets.main.output.classesDirs.files
+    def urls = files.stream().map(File::toURI).map(URI::toURL).collect(Collectors.toSet()).toArray(new URL[0])
+    def clazz = new URLClassLoader(urls).loadClass("${project.group}.NameGenerator")
+    def instance = clazz.newInstance()
+    def genMethod = clazz.getMethod("generateName", int.class, int.class)
+    for (int i = 0; i < 10; i++) println genMethod.invoke(instance, Integer.MAX_VALUE, 3)
+  }
+}
